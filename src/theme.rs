@@ -14,14 +14,21 @@ pub const PALE_BLUE: Key<Color> = Key::new("thomhuds.pale_blue");
 
 pub fn theme(env: &mut Env, _: &crate::State) {
     env.set(theme::BUTTON_BORDER_RADIUS, 4.);
-    env.set(theme::FONT_NAME, "Roboto");
+
     env.set(HOT_COLOUR, Color::grey(0.25));
     env.set(FOREGROUND_DARK, Color::grey(0.6));
-
+    
     env.set(RED, Color::from_rgba32_u32(0xF44336FF));
     env.set(PALE_RED, Color::from_rgba32_u32(0xEF9A9AFF));
     env.set(GREEN, Color::from_rgba32_u32(0x4CAF50FF));
     env.set(PALE_GREEN, Color::from_rgba32_u32(0xA5D6A7FF));
     env.set(BLUE, Color::from_rgba32_u32(0x2196F3FF));
     env.set(PALE_BLUE, Color::from_rgba32_u32(0x90CAF9FF));
+
+    #[cfg(target_os = "windows")]
+    env.set(theme::FONT_NAME, "Segoe UI");
+    #[cfg(target_os = "macos")]
+    env.set(theme::FONT_NAME, "San Francisco");
+    #[cfg(target_os = "linux")]
+    env.set(theme::FONT_NAME, "Roboto");
 }
