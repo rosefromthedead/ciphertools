@@ -1,9 +1,8 @@
-use crate::theme::HOT_COLOUR;
 use druid::{
-    theme::{BUTTON_BORDER_RADIUS, BUTTON_DARK, PRIMARY_DARK, BACKGROUND_DARK},
-    widget::{Flex, Label, LabelText, MainAxisAlignment},
+    theme::{BUTTON_BORDER_RADIUS, BACKGROUND_DARK},
+    widget::{Flex, Label, LabelText, MainAxisAlignment, CrossAxisAlignment},
     Affine, BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, Point, Rect,
-    RenderContext, Size, UpdateCtx, Widget, Key, Color,
+    RenderContext, Size, UpdateCtx, Widget, Key, Color, WidgetExt,
 };
 
 #[derive(Copy, Clone)]
@@ -29,11 +28,11 @@ impl ModeColour {
 }
 
 pub fn mode_selector(modes: &[(&'static str, ModeColour)]) -> impl Widget<usize> {
-    let mut flex = Flex::row().main_axis_alignment(MainAxisAlignment::Center);
+    let mut flex = Flex::row().main_axis_alignment(MainAxisAlignment::Center).cross_axis_alignment(CrossAxisAlignment::Center);
     for (idx, (name, colour)) in modes.into_iter().enumerate() {
         flex.add_flex_child(Mode::new(name.clone(), *colour, idx, idx == 0, idx == modes.len() - 1), 1.0);
     }
-    flex
+    flex.expand_width()
 }
 
 pub struct Mode {
@@ -65,7 +64,7 @@ impl Mode {
 }
 
 impl Widget<usize> for Mode {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut usize, env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut usize, _env: &Env) {
         match event {
             Event::MouseDown(_) => {
                 *data = self.id;
@@ -75,14 +74,14 @@ impl Widget<usize> for Mode {
         }
     }
 
-    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &usize, env: &Env) {
+    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, _data: &usize, env: &Env) {
         if let LifeCycle::HotChanged(_) = event {
             ctx.request_paint();
         }
         self.label.lifecycle(ctx, event, &(), env)
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &usize, data: &usize, env: &Env) {
+    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &usize, _data: &usize, _env: &Env) {
         ctx.request_paint();
     }
 
@@ -90,7 +89,7 @@ impl Widget<usize> for Mode {
         &mut self,
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &usize,
+        _data: &usize,
         env: &Env,
     ) -> Size {
         let padding = Size::new(8., 4.);

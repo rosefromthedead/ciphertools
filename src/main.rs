@@ -1,6 +1,6 @@
 use druid::{
-    widget::{CrossAxisAlignment, Flex, Label, MainAxisAlignment, ViewSwitcher, Scroll},
-    AppLauncher, Data, Lens, Widget, WidgetExt, WindowDesc, theme::FOREGROUND_DARK,
+    widget::{Label, ViewSwitcher},
+    AppLauncher, Data, Lens, Widget, WidgetExt, WindowDesc,
 };
 
 mod theme;
@@ -9,11 +9,15 @@ mod widget;
 
 #[derive(Clone, Data, Lens, Default)]
 pub struct State {
-    shift: tools::ShiftState,
+    shift: tools::shift::ShiftState,
+    vigenere: tools::vigenere::VigenereState,
+    base64: tools::base64::Base64State,
     selected_tab: usize,
 }
 
 fn main() {
+    env_logger::init();
+
     let window = WindowDesc::new(app)
         .title("CipherTools")
         .window_size((800., 600.));
@@ -29,21 +33,15 @@ fn app() -> impl Widget<State> {
     tab_selector(
         vec![Entry::Category("CIPHERS"), Entry::Tab("Shift"), Entry::Tab("Vigenère"), Entry::Category("ENCODING"), Entry::Tab("Base64")],
         State::selected_tab,
-        ViewSwitcher::new(|data: &State, env| {
+        ViewSwitcher::new(|data: &State, _env| {
             data.selected_tab
-        }, |value, _data, env| {
+        }, |value, _data, _env| {
             match value {
                 0 => tools::shift::build_shift_widget().lens(State::shift).boxed(),
+                1 => tools::vigenere::build_vigenere_widget().lens(State::vigenere).boxed(),
+                2 => tools::base64::build_base64_widget().lens(State::base64).boxed(),
                 _ => Label::new("Unimplemented").boxed(),
             }
-        })
-    ).padding(4.0).debug_paint_layout()
-}
-
-fn soft_label<T: Data>(text: &str) -> impl Widget<T> {
-    Label::new(text.to_string())
-        .with_text_color(FOREGROUND_DARK)
-        .with_text_size(14.0)
-        .align_left()
-        .padding(2.0)
+        }).expand_height()
+    ).padding(4.0)
 }

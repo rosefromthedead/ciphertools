@@ -1,13 +1,10 @@
-use super::{text_input, titled_panel};
-use crate::{
-    soft_label,
-    widget::mode_selector::{mode_selector, ModeColour},
+use crate::widget::{
+    input_label,
+    mode_selector::{mode_selector, ModeColour},
+    titled_panel,
 };
 use druid::{
-    theme::PRIMARY_DARK,
-    widget::{
-        Container, Controller, CrossAxisAlignment, Flex, MainAxisAlignment, Stepper, TextBox,
-    },
+    widget::{Controller, CrossAxisAlignment, Flex, MainAxisAlignment, Stepper, TextBox},
     Data, Env, Event, EventCtx, Lens, LensExt, Widget, WidgetExt,
 };
 
@@ -36,28 +33,41 @@ fn shift(plaintext: &str, count: u8) -> String {
     out
 }
 
+fn find_key(plaintext: &str, ciphertext: &str) -> Option<u8> {
+    let mut current = None;
+    for (plain, cipher) in plaintext.chars().zip(ciphertext.chars()) {
+        match (plain.is_ascii_alphabetic(), cipher.is_ascii_alphabetic()) {
+            (true, true) => {
+                if plain.is_ascii_uppercase() != cipher.is_ascii_uppercase() {
+                    return None;
+                }
+                let key = ((cipher as i32 - plain as i32) % 26) as u8;
+                if let Some(current) = current {
+                    if current != key {
+                        return None;
+                    }
+                } else {
+                    current = Some(key as u8);
+                }
+            }
+            (false, false) => continue,
+            _ => return None,
+        }
+    }
+    current
+}
+
 #[derive(Clone, Data, Lens, Default)]
 pub struct ShiftState {
     plaintext: String,
     ciphertext: String,
-    count: u8,
+    count: Option<u8>,
     mode: usize,
 }
 
-impl ShiftState {
-    pub fn new() -> Self {
-        ShiftState {
-            plaintext: String::new(),
-            ciphertext: String::new(),
-            count: 0,
-            mode: 0,
-        }
-    }
-}
+struct ShiftController;
 
-struct PlaintextController;
-
-impl<W: Widget<ShiftState>> Controller<ShiftState, W> for PlaintextController {
+impl<W: Widget<ShiftState>> Controller<ShiftState, W> for ShiftController {
     fn event(
         &mut self,
         child: &mut W,
@@ -66,17 +76,32 @@ impl<W: Widget<ShiftState>> Controller<ShiftState, W> for PlaintextController {
         data: &mut ShiftState,
         env: &Env,
     ) {
-        let old_plaintext = data.plaintext.clone();
         child.event(ctx, event, data, env);
-        if old_plaintext != data.plaintext {
-            data.ciphertext = shift(&data.plaintext, data.count);
+        match data.mode {
+            0 => {
+                // Encrypt
+                if let Some(count) = data.count {
+                    data.ciphertext = shift(&data.plaintext, count);
+                }
+            }
+            1 => {
+                // Decrypt
+                if let Some(count) = data.count {
+                    data.plaintext = shift(&data.ciphertext, 26 - count);
+                }
+            }
+            2 => {
+                // Find Key
+                data.count = find_key(&data.plaintext, &data.ciphertext);
+            }
+            _ => panic!("shift: wrong mode"),
         }
     }
 }
 
-struct CountController;
+struct DisableWithMode(usize);
 
-impl<W: Widget<ShiftState>> Controller<ShiftState, W> for CountController {
+impl<W: Widget<ShiftState>> Controller<ShiftState, W> for DisableWithMode {
     fn event(
         &mut self,
         child: &mut W,
@@ -85,67 +110,78 @@ impl<W: Widget<ShiftState>> Controller<ShiftState, W> for CountController {
         data: &mut ShiftState,
         env: &Env,
     ) {
-        let old_count = data.count;
-        child.event(ctx, event, data, env);
-        if old_count != data.count {
-            data.ciphertext = shift(&data.plaintext, data.count);
+        if data.mode != self.0 {
+            child.event(ctx, event, data, env);
+            return;
+        }
+        match event {
+            Event::MouseDown(_) | Event::MouseUp(_) | Event::KeyDown(_) | Event::KeyUp(_) => return,
+            _ => child.event(ctx, event, data, env),
         }
     }
 }
 
 pub fn build_shift_widget() -> impl Widget<ShiftState> {
+    let mode_selector = mode_selector(&[
+        ("Encrypt", ModeColour::Green),
+        ("Decrypt", ModeColour::Red),
+        ("Find Key", ModeColour::Blue),
+    ])
+    .lens(ShiftState::mode);
+
     let plaintext = Flex::column()
         .cross_axis_alignment(CrossAxisAlignment::Start)
-        .with_child(crate::soft_label("PLAINTEXT"))
-        .with_child(TextBox::new().lens(ShiftState::plaintext))
-        .controller(PlaintextController);
-    let ciphertext = Flex::column()
-        .cross_axis_alignment(CrossAxisAlignment::Start)
-        .with_child(crate::soft_label("CIPHERTEXT"))
-        .with_child(TextBox::new().lens(ShiftState::ciphertext));
+        .with_child(input_label("PLAINTEXT").lens(ShiftState::mode.map(|x| *x == 1, |_, _| {})))
+        .with_child(TextBox::new().lens(ShiftState::plaintext).expand_width())
+        .controller(DisableWithMode(1));
 
-    let input_row = Flex::row()
-        .with_flex_child(plaintext, 1.0)
-        .with_spacer(4.0)
+    let count = Flex::column()
+        .cross_axis_alignment(CrossAxisAlignment::Start)
+        .with_child(input_label("COUNT").lens(ShiftState::mode.map(|x| *x == 2, |_, _| {})))
         .with_child(
-            Flex::column()
-                .cross_axis_alignment(CrossAxisAlignment::Start)
-                .with_child(soft_label("COUNT"))
+            Flex::row()
+                .with_child(TextBox::new().lens(ShiftState::count.map(
+                    |x| {
+                        x.as_ref()
+                            .map(ToString::to_string)
+                            .unwrap_or_else(|| String::from("N/A"))
+                    },
+                    |x, y| *x = y.parse().ok(),
+                )))
                 .with_child(
-                    Flex::row()
-                        .with_child(
-                            TextBox::new().parse().lens(
-                                ShiftState::count.map(|x| Some(*x), |x, y| *x = y.unwrap_or(0)),
-                            ),
-                        )
-                        .with_child(
-                            Stepper::new()
-                                .with_range(0., 25.)
-                                .with_wraparound(true)
-                                .lens(ShiftState::count.map(|x| *x as f64, |x, y| *x = y as u8)),
+                    Stepper::new()
+                        .with_range(0., 25.)
+                        .with_wraparound(true)
+                        .lens(
+                            ShiftState::count
+                                .map(|x| x.unwrap_or(0) as f64, |x, y| *x = Some(y as u8)),
                         ),
                 ),
-        );
+        )
+        .controller(DisableWithMode(2));
 
-    let mode_selector = mode_selector(&[
-            ("Decrypt", ModeColour::Red),
-            ("Encrypt", ModeColour::Green),
-            ("Find Key", ModeColour::Blue),
-        ])
-        .lens(ShiftState::mode);
+    let ciphertext = Flex::column()
+        .cross_axis_alignment(CrossAxisAlignment::Start)
+        .with_child(input_label("CIPHERTEXT").lens(ShiftState::mode.map(|x| *x == 0, |_, _| {})))
+        .with_child(TextBox::new().lens(ShiftState::ciphertext).expand_width())
+        .controller(DisableWithMode(0));
 
     let column = Flex::column()
         .main_axis_alignment(MainAxisAlignment::Center)
         .cross_axis_alignment(CrossAxisAlignment::Center)
         .with_child(mode_selector)
-        .with_spacer(16.0)
-        .with_child(input_row)
-        .with_spacer(16.0)
-        .with_child(ciphertext);
+        .with_spacer(2.0)
+        .with_child(plaintext)
+        .with_spacer(2.0)
+        .with_child(count)
+        .with_spacer(2.0)
+        .with_child(ciphertext)
+        .expand_height();
 
     titled_panel(
         "Shift Cipher",
         " - Shifts each character along the alphabet.",
-        column
+        column,
     )
+    .controller(ShiftController)
 }

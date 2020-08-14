@@ -1,9 +1,9 @@
-use crate::{soft_label, theme::HOT_COLOUR};
+use crate::{widget::soft_label, theme::HOT_COLOUR};
 use druid::{
     theme::{BUTTON_BORDER_RADIUS, BUTTON_DARK, PRIMARY_DARK},
     widget::{Flex, Label, LabelText, MainAxisAlignment},
     Affine, BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, Lens, LifeCycle, LifeCycleCtx,
-    Point, Rect, RenderContext, Selector, Size, UpdateCtx, Vec2, Widget, WidgetExt, WidgetPod,
+    Point, Rect, RenderContext, Size, UpdateCtx, Vec2, Widget, WidgetExt,
 };
 
 pub enum Entry {
@@ -16,7 +16,7 @@ pub fn tab_selector<T: Data>(
     lens: impl Lens<T, usize> + 'static,
     content: impl Widget<T> + 'static,
 ) -> impl Widget<T> {
-    let mut main = Flex::row().must_fill_main_axis(true);
+    let mut main = Flex::row();
 
     let mut col = Flex::column().main_axis_alignment(MainAxisAlignment::Start);
     let mut tab_id = 0;
@@ -31,10 +31,10 @@ pub fn tab_selector<T: Data>(
     }
     let col = col.fix_width(128.0);
 
-    let content = content.padding(4.0).border(PRIMARY_DARK, 1.0).rounded(1.0).expand();
+    let content = content.padding(4.0).border(PRIMARY_DARK, 1.0).rounded(1.0);
 
-    main.add_child(col.lens(lens));
-    main.add_child(content);
+    main.add_child(col.lens(lens).expand_height());
+    main.add_flex_child(content, 1.0);
 
     main
 }
@@ -56,7 +56,7 @@ impl Tab {
 }
 
 impl Widget<usize> for Tab {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut usize, env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut usize, _env: &Env) {
         match event {
             Event::MouseDown(_) => {
                 *data = self.id;
@@ -66,7 +66,7 @@ impl Widget<usize> for Tab {
         }
     }
 
-    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &usize, env: &Env) {
+    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, _data: &usize, env: &Env) {
         if let LifeCycle::HotChanged(_) = event {
             ctx.request_paint();
         }
@@ -84,7 +84,7 @@ impl Widget<usize> for Tab {
         &mut self,
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &usize,
+        _data: &usize,
         env: &Env,
     ) -> Size {
         let padding = Size::new(8., 4.);
